@@ -49,21 +49,24 @@ export default function Dashboard() {
               icon={Upload}
               title="Upload Notes"
               description="Upload PDFs and notes to get AI-powered summaries, highlights, and resources"
-              link="/upload"
+              link="https://undepreciated-scorningly-charlyn.ngrok-free.dev/docs"
               gradient
+              external
             />
             <FeatureCard
               icon={MessageSquare}
               title="Ask Agora AI"
               description="Get instant help with doubts, concept clarity, and deep learning from your AI tutor"
-              link="/tutor"
+              link="https://undepreciated-scorningly-charlyn.ngrok-free.dev/voice"
               gradient
+              external
             />
             <FeatureCard
               icon={ListChecks}
               title="Start Quiz"
               description="Test your knowledge with AI-generated quizzes from your uploaded material"
-              link="/quiz"
+              link="https://undepreciated-scorningly-charlyn.ngrok-free.dev/generate_quiz"
+              external
             />
             <FeatureCard
               icon={BarChart3}
