@@ -1,0 +1,268 @@
+git apply add-backend.patch
+diff --git a/backend/package.json b/backend/package.json
+new file mode 100644
+index 0000000..e1b24dc
+--- /dev/null
++++ b/backend/package.json
+@@ -0,0 +1,54 @@
++{
++  "name": "synergy-backend",
++  "version": "1.0.0",
++  "main": "dist/server.js",
++  "scripts": {
++    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
++    "build": "tsc",
++    "start": "node dist/server.js"
++  },
++  "dependencies": {
++    "axios": "^1.5.0",
++    "body-parser": "^1.20.2",
++    "cors": "^2.8.5",
++    "dotenv": "^16.1.4",
++    "express": "^4.18.2",
++    "form-data": "^4.0.0",
++    "multer": "^1.4.5-lts.1",
++    "@supabase/supabase-js": "^2.10.0",
++    "openai": "^4.4.0"
++  },
++  "devDependencies": {
++    "@types/express": "^4.17.17",
++    "@types/node": "^20.5.6",
++    "ts-node-dev": "^2.0.0",
++    "typescript": "^5.5.6"
++  }
++}
+diff --git a/backend/tsconfig.json b/backend/tsconfig.json
+new file mode 100644
+index 0000000..fc76b6a
+--- /dev/null
++++ b/backend/tsconfig.json
+@@ -0,0 +1,16 @@
++{
++  "compilerOptions": {
++    "target": "ES2020",
++    "module": "CommonJS",
++    "outDir": "dist",
++    "rootDir": "src",
++    "strict": true,
++    "esModuleInterop": true,
++    "skipLibCheck": true
++  }
++}
+diff --git a/backend/src/server.ts b/backend/src/server.ts
+new file mode 100644
+index 0000000..ae8d7d8
+--- /dev/null
++++ b/backend/src/server.ts
+@@ -0,0 +1,36 @@
++import express from "express";
++import dotenv from "dotenv";
++import cors from "cors";
++import bodyParser from "body-parser";
++
++import uploadRouter from "./routes/upload";
++import aiRouter from "./routes/ai";
++import agoraRouter from "./routes/agora";
++
++dotenv.config();
++
++const app = express();
++app.use(cors());
++app.use(bodyParser.json({ limit: "10mb" }));
++app.use(bodyParser.urlencoded({ extended: true }));
++
++app.use("/api/upload", uploadRouter);
++app.use("/api/ai", aiRouter);
++app.use("/api/agora", agoraRouter);
++
++const port = process.env.PORT || 5000;
++app.listen(port, () => {
++  console.log(`Synergy backend running on port ${port}`);
++});
+diff --git a/backend/src/lib/supabaseClient.ts b/backend/src/lib/supabaseClient.ts
+new file mode 100644
+index 0000000..92e0a6b
+--- /dev/null
++++ b/backend/src/lib/supabaseClient.ts
+@@ -0,0 +1,14 @@
++import { createClient } from "@supabase/supabase-js";
++
++const url = process.env.SUPABASE_URL!;
++const key = process.env.SUPABASE_KEY!;
++
++if (!url || !key) {
++  throw new Error("Missing SUPABASE_URL or SUPABASE_KEY in env");
++}
++
++export const supabase = createClient(url, key);
+diff --git a/backend/src/routes/upload.ts b/backend/src/routes/upload.ts
+new file mode 100644
+index 0000000..1a5e0c0
+--- /dev/null
++++ b/backend/src/routes/upload.ts
+@@ -0,0 +1,61 @@
++import express from "express";
++import multer from "multer";
++import fs from "fs";
++import { supabase } from "../lib/supabaseClient";
++
++const router = express.Router();
++const upload = multer({ dest: "tmp/" });
++
++router.post("/", upload.single("file"), async (req, res) => {
++  try {
++    const file = req.file;
++    if (!file) return res.status(400).json({ error: "No file uploaded" });
++
++    const fileStream = fs.createReadStream(file.path);
++    const fileName = `${Date.now()}_${file.originalname}`;
++
++    const { data, error } = await supabase.storage
++      .from("pdfs")
++      .upload(fileName, fileStream, {
++        contentType: file.mimetype
++      });
++
++    fs.unlinkSync(file.path);
++
++    if (error) return res.status(500).json({ error: error.message });
++
++    const publicUrl =
++      supabase.storage.from("pdfs").getPublicUrl(fileName).data.publicUrl;
++
++    res.json({ url: publicUrl, path: fileName });
++  } catch (err: any) {
++    res.status(500).json({ error: err.message });
++  }
++});
++
++export default router;
+diff --git a/backend/src/routes/ai.ts b/backend/src/routes/ai.ts
+new file mode 100644
+index 0000000..14b68ee
+--- /dev/null
++++ b/backend/src/routes/ai.ts
+@@ -0,0 +1,98 @@
++import express from "express";
++import { OpenAI } from "openai";
++
++const router = express.Router();
++
++const openai = new OpenAI({
++  apiKey: process.env.OPENAI_API_KEY
++});
++
++router.post("/chat", async (req, res) => {
++  try {
++    const { message } = req.body;
++    if (!message) return res.status(400).json({ error: "message required" });
++
++    const completion = await openai.chat.completions.create({
++      model: "gpt-4o-mini",
++      messages: [{ role: "user", content: message }],
++      max_tokens: 500
++    });
++
++    const response = completion.choices[0].message.content;
++    res.json({ text: response });
++  } catch (err: any) {
++    res.status(500).json({ error: err.message });
++  }
++});
++
++router.post("/generate-quiz", async (req, res) => {
++  try {
++    const { text, numQuestions = 5 } = req.body;
++
++    const prompt = `Generate ${numQuestions} MCQ questions with 4 options and answerIndex from this content:\n${text}\nRespond only in JSON.`;
++
++    const completion = await openai.chat.completions.create({
++      model: "gpt-4o-mini",
++      messages: [{ role: "user", content: prompt }],
++      max_tokens: 800
++    });
++
++    const raw = completion.choices[0].message.content || "";
++    let quiz;
++    try {
++      quiz = JSON.parse(raw);
++    } catch {
++      quiz = raw;
++    }
++    res.json({ quiz });
++  } catch (err: any) {
++    res.status(500).json({ error: err.message });
++  }
++});
++
++export default router;
+diff --git a/backend/src/routes/agora.ts b/backend/src/routes/agora.ts
+new file mode 100644
+index 0000000..076a39b
+--- /dev/null
++++ b/backend/src/routes/agora.ts
+@@ -0,0 +1,119 @@
++import express from "express";
++import axios from "axios";
++
++const router = express.Router();
++
++const APPID = process.env.AGORA_APP_ID!;
++const CUSTOMER_ID = process.env.AGORA_CUSTOMER_ID!;
++const CUSTOMER_SECRET = process.env.AGORA_CUSTOMER_SECRET!;
++
++function authHeader() {
++  const token = Buffer.from(`${CUSTOMER_ID}:${CUSTOMER_SECRET}`).toString("base64");
++  return `Basic ${token}`;
++}
++
++router.post("/start-agent", async (req, res) => {
++  try {
++    const { name, channel } = req.body;
++    const endpoint = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${APPID}/join`;
++
++    const body = {
++      name,
++      properties: {
++        channel,
++        token: "",
++        agent_rtc_uid: 0,
++        remote_rtc_uids: ["*"],
++        idle_timeout: 30,
++        llm: {
++          url: "",
++          api_key: ""
++        },
++        greeting_message: "Hello! I’m your AI tutor."
++      }
++    };
++
++    const resp = await axios.post(endpoint, body, {
++      headers: {
++        Authorization: authHeader(),
++        "Content-Type": "application/json"
++      }
++    });
++
++    res.json(resp.data);
++  } catch (err: any) {
++    res.status(500).json({ error: err.message });
++  }
++});
++
++router.post("/stop-agent", async (req, res) => {
++  try {
++    const { instance_id } = req.body;
++    const endpoint = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${APPID}/agents/${instance_id}/leave`;
++
++    const resp = await axios.post(endpoint, {}, {
++      headers: { Authorization: authHeader() }
++    });
++
++    res.json(resp.data);
++  } catch (err: any) {
++    res.status(500).json({ error: err.message });
++  }
++});
++
++export default router;
