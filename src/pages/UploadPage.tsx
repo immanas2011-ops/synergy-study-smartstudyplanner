@@ -1,0 +1,155 @@
+import { useState } from "react";
+import { Upload, FileText, Sparkles, Link as LinkIcon, ListChecks } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+
+export default function UploadPage() {
+  const [isDragging, setIsDragging] = useState(false);
+  const { toast } = useToast();
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    toast({
+      title: "File uploaded! 🎉",
+      description: "Your notes are being processed by Agora AI...",
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Upload Your Notes</h1>
+          <p className="text-muted-foreground">
+            Upload PDFs or documents to get AI-powered summaries and insights
+          </p>
+        </div>
+
+        {/* Upload Area */}
+        <Card 
+          className={`border-2 border-dashed p-12 text-center transition-smooth ${
+            isDragging 
+              ? 'border-primary bg-primary/5 shadow-glow' 
+              : 'border-border/50 hover:border-primary/50'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full gradient-primary shadow-glow">
+              <Upload className="h-10 w-10 text-primary-foreground" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold mb-2">Drag & Drop your files here</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                or click to browse from your device
+              </p>
+              <Button className="gradient-primary text-primary-foreground shadow-glow">
+                Choose Files
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Supported formats: PDF, DOCX, TXT (Max 50MB)
+            </p>
+          </div>
+        </Card>
+
+        {/* AI Processing Preview */}
+        <Card className="p-6 border-border/50 shadow-card">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-accent">
+              <Sparkles className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold mb-1">What happens after upload?</h3>
+              <p className="text-sm text-muted-foreground">
+                Agora AI will automatically process your notes
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex gap-3 p-4 rounded-xl bg-muted/30">
+              <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold mb-1">Smart Summaries</h4>
+                <p className="text-sm text-muted-foreground">
+                  Get crisp, exam-ready chapter summaries
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 rounded-xl bg-muted/30">
+              <Sparkles className="h-5 w-5 text-secondary flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold mb-1">Key Highlights</h4>
+                <p className="text-sm text-muted-foreground">
+                  Important keywords & formulas marked
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 rounded-xl bg-muted/30">
+              <LinkIcon className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold mb-1">Reference Links</h4>
+                <p className="text-sm text-muted-foreground">
+                  YouTube & Wikipedia resources added
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 rounded-xl bg-muted/30">
+              <ListChecks className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold mb-1">Quiz Ready</h4>
+                <p className="text-sm text-muted-foreground">
+                  Auto-generate quizzes from content
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Recent Uploads */}
+        <div>
+          <h2 className="text-xl font-bold mb-4">Recent Uploads</h2>
+          <div className="space-y-3">
+            {[
+              { name: "Engineering_Mechanics_Ch3.pdf", subject: "Mechanics", date: "2 hours ago" },
+              { name: "Thermodynamics_Notes.pdf", subject: "Thermal", date: "1 day ago" },
+              { name: "Digital_Electronics.pdf", subject: "Electronics", date: "2 days ago" },
+            ].map((file, idx) => (
+              <Card key={idx} className="p-4 border-border/50 hover:shadow-card transition-smooth">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{file.name}</p>
+                      <p className="text-sm text-muted-foreground">{file.subject} • {file.date}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm">View</Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
