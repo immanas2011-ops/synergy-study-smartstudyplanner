@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string | null
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          role?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           chat_id: string
@@ -45,6 +69,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pdfs: {
+        Row: {
+          created_at: string
+          id: string
+          pdf_name: string
+          pdf_url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pdf_name: string
+          pdf_url: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pdf_name?: string
+          pdf_url?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -279,6 +327,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      summaries: {
+        Row: {
+          created_at: string | null
+          id: string
+          pdf_id: string
+          summary: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pdf_id?: string
+          summary?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pdf_id?: string
+          summary?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       tutor_chats: {
         Row: {
