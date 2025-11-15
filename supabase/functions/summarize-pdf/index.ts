@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message } = await req.json();
+    const { pdf_id } = await req.json();
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -23,22 +23,17 @@ serve(async (req) => {
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Save user message to chat_history
-    await supabaseClient.from('chat_history').insert({
-      user_id: user.id,
-      role: 'user',
-      message: message,
-    });
-
-    // Get recent chat history
-    const { data: history } = await supabaseClient
-      .from('chat_history')
+    const { data: pdf, error: pdfError } = await supabaseClient
+      .from('pdfs')
       .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(10);
+      .eq('id', pdf_id)
+      .single();
 
-    // Call Lovable AI
+    if (pdfError) throw pdfError;
+
+    // Simulate text extraction (in real app, use PDF parsing library)
+    const extractedText = `Sample text from ${pdf.pdf_name}`;
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -51,10 +46,12 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are Agora, a helpful AI tutor. Keep responses clear and concise.'
+            content: 'You are an AI that creates concise summaries of educational content.'
           },
-          ...history?.reverse().map(m => ({ role: m.role, content: m.message })) || [],
-          { role: 'user', content: message }
+          {
+            role: 'user',
+            content: `Summarize this text in 3-5 bullet points:\n\n${extractedText}`
+          }
         ],
       }),
     });
@@ -64,17 +61,22 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const aiReply = aiData.choices[0].message.content;
+    const summary = aiData.choices[0].message.content;
 
-    // Save AI response to chat_history
-    await supabaseClient.from('chat_history').insert({
-      user_id: user.id,
-      role: 'ai',
-      message: aiReply,
-    });
+    const { data: summaryRecord, error: summaryError } = await supabaseClient
+      .from('summaries')
+      .insert({
+        pdf_id: pdf_id,
+        summary: summary,
+        user_id: user.id
+      })
+      .select()
+      .single();
+
+    if (summaryError) throw summaryError;
 
     return new Response(
-      JSON.stringify({ reply: aiReply }),
+      JSON.stringify({ summary }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
