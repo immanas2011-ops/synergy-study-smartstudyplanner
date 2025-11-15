@@ -1,10 +1,28 @@
 project_id = "raagizsajkrmaownwucd"
 
+[functions.chat]
+verify_jwt = true
+
+[functions.upload-pdf]
+verify_jwt = true
+
+[functions.summarize-pdf]
+verify_jwt = true
+
+[functions.quiz]
+verify_jwt = true
+
+[functions.stt]
+verify_jwt = true
+
+[functions.tts]
+verify_jwt = true
+
+[functions.voice-chat]
+verify_jwt = true
+
 [functions.generate-quiz]
 verify_jwt = true
 
 [functions.process-pdf]
-verify_jwt = true
-
-[functions.chat]
 verify_jwt = true

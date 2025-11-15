@@ -2,12 +2,41 @@ import { useState } from "react";
 import { CheckCircle2, XCircle, Play } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function QuizPage() {
   const [quizStarted, setQuizStarted] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const { toast } = useToast();
 
-  const demoQuestion = {
+  const startQuiz = async () => {
+    setLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('quiz', {
+        body: { text: "Engineering Mechanics sample content" }
+      });
+
+      if (error) throw error;
+
+      setQuestions(data.questions || []);
+      setQuizStarted(true);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate quiz",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentQ = questions[currentQuestion] || {
     question: "What is Newton's First Law of Motion?",
     options: [
       "Force equals mass times acceleration",
@@ -50,11 +79,12 @@ export default function QuizPage() {
                     </span>
                   </div>
                   <Button 
-                    onClick={() => setQuizStarted(true)}
+                    onClick={startQuiz}
                     className="w-full gradient-primary text-primary-foreground"
+                    disabled={loading}
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    Start Quiz
+                    {loading ? "Generating..." : "Start Quiz"}
                   </Button>
                 </Card>
               ))}
@@ -95,15 +125,15 @@ export default function QuizPage() {
 
             {/* Question Card */}
             <Card className="p-8 border-border/50 shadow-card">
-              <h2 className="text-xl font-bold mb-6">{demoQuestion.question}</h2>
+              <h2 className="text-xl font-bold mb-6">{currentQ.question}</h2>
               <div className="space-y-3">
-                {demoQuestion.options.map((option, idx) => (
+                {currentQ.options.map((option: string, idx: number) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedAnswer(idx)}
                     className={`w-full text-left p-4 rounded-xl border-2 transition-smooth ${
                       selectedAnswer === idx
-                        ? idx === demoQuestion.correct
+                        ? idx === currentQ.correct
                           ? 'border-success bg-success/10'
                           : 'border-destructive bg-destructive/10'
                         : 'border-border hover:border-primary hover:bg-primary/5'
@@ -112,7 +142,7 @@ export default function QuizPage() {
                     <div className="flex items-center justify-between">
                       <span>{option}</span>
                       {selectedAnswer === idx && (
-                        idx === demoQuestion.correct ? (
+                        idx === currentQ.correct ? (
                           <CheckCircle2 className="h-5 w-5 text-success" />
                         ) : (
                           <XCircle className="h-5 w-5 text-destructive" />

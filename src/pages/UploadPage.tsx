@@ -3,9 +3,14 @@ import { Upload, FileText, Sparkles, Link as LinkIcon, ListChecks } from "lucide
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+  const [currentPdfId, setCurrentPdfId] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -17,13 +22,92 @@ export default function UploadPage() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    toast({
-      title: "File uploaded! 🎉",
-      description: "Your notes are being processed by Agora AI...",
-    });
+    
+    const file = e.dataTransfer.files[0];
+    if (file) await uploadFile(file);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFile(file);
+  };
+
+  const uploadFile = async (file: File) => {
+    if (!file.type.includes('pdf')) {
+      toast({
+        title: "Invalid file",
+        description: "Please upload a PDF file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const { data, error } = await supabase.functions.invoke('upload-pdf', {
+        body: formData
+      });
+
+      if (error) throw error;
+
+      setCurrentPdfId(data.pdf_id);
+      
+      toast({
+        title: "File uploaded! 🎉",
+        description: "PDF uploaded successfully. Click Summarize to process it.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload PDF",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!currentPdfId) {
+      toast({
+        title: "No PDF selected",
+        description: "Please upload a PDF first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSummarizing(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('summarize-pdf', {
+        body: { pdf_id: currentPdfId }
+      });
+
+      if (error) throw error;
+
+      setSummary(data.summary);
+      
+      toast({
+        title: "Summary generated! ✨",
+        description: "Your PDF has been summarized",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Summarization failed",
+        description: error.message || "Failed to summarize PDF",
+        variant: "destructive"
+      });
+    } finally {
+      setSummarizing(false);
+    }
   };
 
   return (
@@ -52,21 +136,58 @@ export default function UploadPage() {
               <Upload className="h-10 w-10 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="text-xl font-bold mb-2">Drag & Drop your files here</h3>
+              <h3 className="text-xl font-bold mb-2">
+                {uploading ? "Uploading..." : "Drag & Drop your files here"}
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 or click to browse from your device
               </p>
-              <Button className="gradient-primary text-primary-foreground shadow-glow">
-                Choose Files
-              </Button>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={uploading}
+                id="file-upload"
+              />
+              <label htmlFor="file-upload">
+                <Button 
+                  className="gradient-primary text-primary-foreground shadow-glow"
+                  disabled={uploading}
+                  type="button"
+                >
+                  Choose Files
+                </Button>
+              </label>
             </div>
             <p className="text-xs text-muted-foreground">
-              Supported formats: PDF, DOCX, TXT (Max 50MB)
+              Supported formats: PDF (Max 50MB)
             </p>
           </div>
         </Card>
 
-        {/* AI Processing Preview */}
+        {currentPdfId && (
+          <Card className="p-6 border-border/50 shadow-card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">PDF Ready</h3>
+              <Button 
+                onClick={handleSummarize}
+                disabled={summarizing}
+                className="gradient-primary text-primary-foreground"
+              >
+                {summarizing ? "Processing..." : "Summarize PDF"}
+              </Button>
+            </div>
+            
+            {summary && (
+              <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+                <h4 className="font-semibold mb-2">Summary:</h4>
+                <p className="text-sm whitespace-pre-wrap">{summary}</p>
+              </div>
+            )}
+          </Card>
+        )}
+
         <Card className="p-6 border-border/50 shadow-card">
           <div className="flex items-start gap-4 mb-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-accent">
@@ -86,7 +207,7 @@ export default function UploadPage() {
               <div>
                 <h4 className="font-semibold mb-1">Smart Summaries</h4>
                 <p className="text-sm text-muted-foreground">
-                  Get crisp, exam-ready chapter summaries
+                  Get crisp, exam-ready summaries
                 </p>
               </div>
             </div>
@@ -96,7 +217,7 @@ export default function UploadPage() {
               <div>
                 <h4 className="font-semibold mb-1">Key Highlights</h4>
                 <p className="text-sm text-muted-foreground">
-                  Important keywords & formulas marked
+                  Important keywords marked
                 </p>
               </div>
             </div>
@@ -106,7 +227,7 @@ export default function UploadPage() {
               <div>
                 <h4 className="font-semibold mb-1">Reference Links</h4>
                 <p className="text-sm text-muted-foreground">
-                  YouTube & Wikipedia resources added
+                  YouTube & Wikipedia resources
                 </p>
               </div>
             </div>
@@ -116,7 +237,7 @@ export default function UploadPage() {
               <div>
                 <h4 className="font-semibold mb-1">Quiz Ready</h4>
                 <p className="text-sm text-muted-foreground">
-                  Auto-generate quizzes from content
+                  Auto-generate quizzes
                 </p>
               </div>
             </div>

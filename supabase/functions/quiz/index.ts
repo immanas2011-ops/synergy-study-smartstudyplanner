@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message } = await req.json();
+    const { pdf_id, text } = await req.json();
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -23,22 +23,18 @@ serve(async (req) => {
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Save user message to chat_history
-    await supabaseClient.from('chat_history').insert({
-      user_id: user.id,
-      role: 'user',
-      message: message,
-    });
+    let contentToQuiz = text;
+    
+    if (pdf_id && !text) {
+      const { data: pdf } = await supabaseClient
+        .from('pdfs')
+        .select('pdf_name')
+        .eq('id', pdf_id)
+        .single();
+      
+      contentToQuiz = `Content from ${pdf?.pdf_name || 'document'}`;
+    }
 
-    // Get recent chat history
-    const { data: history } = await supabaseClient
-      .from('chat_history')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    // Call Lovable AI
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -51,10 +47,12 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are Agora, a helpful AI tutor. Keep responses clear and concise.'
+            content: 'You generate multiple choice quiz questions from educational content. Return valid JSON only.'
           },
-          ...history?.reverse().map(m => ({ role: m.role, content: m.message })) || [],
-          { role: 'user', content: message }
+          {
+            role: 'user',
+            content: `Generate 5 multiple choice questions based on this content:\n\n${contentToQuiz}\n\nReturn as JSON: {"questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct": 0}]}`
+          }
         ],
       }),
     });
@@ -64,17 +62,10 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const aiReply = aiData.choices[0].message.content;
-
-    // Save AI response to chat_history
-    await supabaseClient.from('chat_history').insert({
-      user_id: user.id,
-      role: 'ai',
-      message: aiReply,
-    });
+    const result = JSON.parse(aiData.choices[0].message.content);
 
     return new Response(
-      JSON.stringify({ reply: aiReply }),
+      JSON.stringify({ questions: result.questions }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
